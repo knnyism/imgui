@@ -7716,6 +7716,8 @@ void ImGui::RenderWindowDecorations(ImGuiWindow* window, const ImRect& title_bar
         // Render resize grips (after their input handling so we don't have a frame of latency)
         if (handle_borders_and_resize_grips && !(flags & ImGuiWindowFlags_NoResize) && !window->DockNodeAsHost)
         {
+            window->DrawList->ChannelsSplit(2);
+            window->DrawList->ChannelsSetCurrent(1);
             for (int resize_grip_n = 0; resize_grip_n < resize_grip_count; resize_grip_n++)
             {
                 const ImU32 col = resize_grip_col[resize_grip_n];
@@ -7733,13 +7735,14 @@ void ImGui::RenderWindowDecorations(ImGuiWindow* window, const ImRect& title_bar
                 const float  kxx_gap   = 4.0f;
                 for (int kxx_i = 0; kxx_i < 3; kxx_i++)
                 {
-                    const float far = kxx_inset + (float)(kxx_i + 1) * kxx_gap;
-                    const ImVec2 a = corner + kxx_ix * far + kxx_iy * kxx_inset;
-                    const ImVec2 b = corner + kxx_ix * kxx_inset + kxx_iy * far;
-                    GetForegroundDrawList(window)->AddLine(a, b, col, kxx_thickness);
+                    const float kxx_far = kxx_inset + (float)(kxx_i + 1) * kxx_gap;
+                    const ImVec2 a = corner + kxx_ix * kxx_far + kxx_iy * kxx_inset;
+                    const ImVec2 b = corner + kxx_ix * kxx_inset + kxx_iy * kxx_far;
+                    window->DrawList->AddLine(a, b, col, kxx_thickness);
                 }
                 IM_UNUSED(window_rounding);
             }
+            window->DrawList->ChannelsSetCurrent(0);
         }
 
         // Borders (for dock node host they will be rendered over after the tab bar)
