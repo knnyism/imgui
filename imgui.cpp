@@ -7723,11 +7723,21 @@ void ImGui::RenderWindowDecorations(ImGuiWindow* window, const ImRect& title_bar
                     continue;
                 const ImGuiResizeGripDef& grip = resize_grip_def[resize_grip_n];
                 const ImVec2 corner = ImLerp(window->Pos, window->Pos + window->Size, grip.CornerPosN);
-                const float border_inner = IM_ROUND(window_border_size * 0.5f);
-                window->DrawList->PathLineTo(corner + grip.InnerDir * ((resize_grip_n & 1) ? ImVec2(border_inner, resize_grip_draw_size) : ImVec2(resize_grip_draw_size, border_inner)));
-                window->DrawList->PathLineTo(corner + grip.InnerDir * ((resize_grip_n & 1) ? ImVec2(resize_grip_draw_size, border_inner) : ImVec2(border_inner, resize_grip_draw_size)));
-                window->DrawList->PathArcToFast(ImVec2(corner.x + grip.InnerDir.x * (window_rounding + border_inner), corner.y + grip.InnerDir.y * (window_rounding + border_inner)), window_rounding, grip.AngleMin12, grip.AngleMax12);
-                window->DrawList->PathFillConvex(col);
+                // KXX FORK: draw the resize grip as three diagonal lines (a
+                // "grippier" corner) instead of a filled triangle. Lines run
+                // parallel to the corner diagonal, stepped inward from the corner.
+                const float kxx_span = IM_TRUNC(resize_grip_draw_size * 0.72f);
+                const ImVec2 kxx_ix  = ImVec2(grip.InnerDir.x, 0.0f); // inward along X
+                const ImVec2 kxx_iy  = ImVec2(0.0f, grip.InnerDir.y); // inward along Y
+                const float  kxx_thickness = 1.5f;
+                for (int kxx_i = 1; kxx_i <= 3; kxx_i++)
+                {
+                    const float d = kxx_span * (float)kxx_i / 3.0f; // distance from corner
+                    const ImVec2 a = corner + kxx_ix * d;
+                    const ImVec2 b = corner + kxx_iy * d;
+                    window->DrawList->AddLine(a, b, col, kxx_thickness);
+                }
+                IM_UNUSED(window_rounding);
             }
         }
 
