@@ -7714,7 +7714,7 @@ void ImGui::RenderWindowDecorations(ImGuiWindow* window, const ImRect& title_bar
             Scrollbar(ImGuiAxis_Y);
 
         // Render resize grips (after their input handling so we don't have a frame of latency)
-        if (handle_borders_and_resize_grips && !(flags & ImGuiWindowFlags_NoResize))
+        if (handle_borders_and_resize_grips && !(flags & ImGuiWindowFlags_NoResize) && !window->DockNodeAsHost)
         {
             for (int resize_grip_n = 0; resize_grip_n < resize_grip_count; resize_grip_n++)
             {
@@ -7730,7 +7730,7 @@ void ImGui::RenderWindowDecorations(ImGuiWindow* window, const ImRect& title_bar
                 const ImVec2 kxx_iy   = ImVec2(0.0f, grip.InnerDir.y);
                 const float  kxx_thickness = 1.5f;
                 const float  kxx_inset = 4.0f; 
-                const float  kxx_gap   = 4.0f;
+                const float  kxx_gap   = 3.0f;
                 for (int kxx_i = 0; kxx_i < 3; kxx_i++)
                 {
                     const float far = kxx_inset + (float)(kxx_i + 1) * kxx_gap;
