@@ -7726,13 +7726,14 @@ void ImGui::RenderWindowDecorations(ImGuiWindow* window, const ImRect& title_bar
                 // KXX FORK: draw the resize grip as three diagonal lines (a
                 // "grippier" corner) instead of a filled triangle. Lines run
                 // parallel to the corner diagonal, stepped inward from the corner.
-                const float kxx_span = IM_TRUNC(resize_grip_draw_size * 0.72f);
-                const ImVec2 kxx_ix  = ImVec2(grip.InnerDir.x, 0.0f); // inward along X
-                const ImVec2 kxx_iy  = ImVec2(0.0f, grip.InnerDir.y); // inward along Y
+                const ImVec2 kxx_ix   = ImVec2(grip.InnerDir.x, 0.0f);
+                const ImVec2 kxx_iy   = ImVec2(0.0f, grip.InnerDir.y);
                 const float  kxx_thickness = 1.5f;
-                for (int kxx_i = 1; kxx_i <= 3; kxx_i++)
+                const float  kxx_start = IM_TRUNC(resize_grip_draw_size * 0.30f);
+                const float  kxx_gap   = IM_TRUNC(resize_grip_draw_size * 0.26f);
+                for (int kxx_i = 0; kxx_i < 3; kxx_i++)
                 {
-                    const float d = kxx_span * (float)kxx_i / 3.0f; // distance from corner
+                    const float d = kxx_start + kxx_gap * (float)kxx_i;
                     const ImVec2 a = corner + kxx_ix * d;
                     const ImVec2 b = corner + kxx_iy * d;
                     window->DrawList->AddLine(a, b, col, kxx_thickness);
