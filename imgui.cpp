@@ -7716,8 +7716,12 @@ void ImGui::RenderWindowDecorations(ImGuiWindow* window, const ImRect& title_bar
         // Render resize grips (after their input handling so we don't have a frame of latency)
         if (handle_borders_and_resize_grips && !(flags & ImGuiWindowFlags_NoResize) && !window->DockNodeAsHost)
         {
-            window->DrawList->ChannelsSplit(2);
-            window->DrawList->ChannelsSetCurrent(1);
+            const bool kxx_own_split = (window->DrawList->_Splitter._Count <= 1);
+            if (kxx_own_split)
+            {
+                window->DrawList->ChannelsSplit(2);
+                window->DrawList->ChannelsSetCurrent(1);
+            }
             for (int resize_grip_n = 0; resize_grip_n < resize_grip_count; resize_grip_n++)
             {
                 const ImU32 col = resize_grip_col[resize_grip_n];
@@ -7742,7 +7746,8 @@ void ImGui::RenderWindowDecorations(ImGuiWindow* window, const ImRect& title_bar
                 }
                 IM_UNUSED(window_rounding);
             }
-            window->DrawList->ChannelsSetCurrent(0);
+            if (kxx_own_split)
+                window->DrawList->ChannelsSetCurrent(0);
         }
 
         // Borders (for dock node host they will be rendered over after the tab bar)
