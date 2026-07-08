@@ -7729,8 +7729,8 @@ void ImGui::RenderWindowDecorations(ImGuiWindow* window, const ImRect& title_bar
                 const ImVec2 kxx_ix   = ImVec2(grip.InnerDir.x, 0.0f);
                 const ImVec2 kxx_iy   = ImVec2(0.0f, grip.InnerDir.y);
                 const float  kxx_thickness = 1.5f;
-                const float  kxx_start = IM_TRUNC(resize_grip_draw_size * 0.30f);
-                const float  kxx_gap   = IM_TRUNC(resize_grip_draw_size * 0.26f);
+                const float  kxx_start = 4.0f;
+                const float  kxx_gap   = 6.0f;
                 for (int kxx_i = 0; kxx_i < 3; kxx_i++)
                 {
                     const float d = kxx_start + kxx_gap * (float)kxx_i;
