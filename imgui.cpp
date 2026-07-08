@@ -7736,7 +7736,7 @@ void ImGui::RenderWindowDecorations(ImGuiWindow* window, const ImRect& title_bar
                     const float far = kxx_inset + (float)(kxx_i + 1) * kxx_gap;
                     const ImVec2 a = corner + kxx_ix * far + kxx_iy * kxx_inset;
                     const ImVec2 b = corner + kxx_ix * kxx_inset + kxx_iy * far;
-                    window->DrawList->AddLine(a, b, col, kxx_thickness);
+                    GetForegroundDrawList(window)->AddLine(a, b, col, kxx_thickness);
                 }
                 IM_UNUSED(window_rounding);
             }
