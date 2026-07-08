@@ -7729,13 +7729,13 @@ void ImGui::RenderWindowDecorations(ImGuiWindow* window, const ImRect& title_bar
                 const ImVec2 kxx_ix   = ImVec2(grip.InnerDir.x, 0.0f);
                 const ImVec2 kxx_iy   = ImVec2(0.0f, grip.InnerDir.y);
                 const float  kxx_thickness = 1.5f;
-                const float  kxx_start = 4.0f;
-                const float  kxx_gap   = 6.0f;
+                const float  kxx_inset = 4.0f; 
+                const float  kxx_gap   = 3.0f;
                 for (int kxx_i = 0; kxx_i < 3; kxx_i++)
                 {
-                    const float d = kxx_start + kxx_gap * (float)kxx_i;
-                    const ImVec2 a = corner + kxx_ix * d;
-                    const ImVec2 b = corner + kxx_iy * d;
+                    const float far = kxx_inset + (float)(kxx_i + 1) * kxx_gap;
+                    const ImVec2 a = corner + kxx_ix * far + kxx_iy * kxx_inset;
+                    const ImVec2 b = corner + kxx_ix * kxx_inset + kxx_iy * far;
                     window->DrawList->AddLine(a, b, col, kxx_thickness);
                 }
                 IM_UNUSED(window_rounding);
