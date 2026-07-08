@@ -810,10 +810,13 @@ bool ImGui::ButtonEx(const char* label, const ImVec2& size_arg, ImGuiButtonFlags
     const ImU32 col = GetColorU32((held && hovered) ? ImGuiCol_ButtonActive : hovered ? ImGuiCol_ButtonHovered : ImGuiCol_Button);
     RenderNavCursor(bb, id);
     RenderFrame(bb.Min, bb.Max, col, true, style.FrameRounding);
+    KxxHoverOutline(bb, false); // KXX FORK
 
     if (g.LogEnabled)
         LogSetNextTextDecoration("[", "]");
+    const bool _kxxb = KxxPushBrightText(); // KXX FORK
     RenderTextClipped(bb.Min + style.FramePadding, bb.Max - style.FramePadding, label, label_end, &label_size, style.ButtonTextAlign, &bb);
+    if (_kxxb) PopStyleColor(); // KXX FORK
 
     // Automatically close popups
     //if (pressed && !(flags & ImGuiButtonFlags_DontClosePopups) && (window->Flags & ImGuiWindowFlags_Popup))
@@ -883,10 +886,24 @@ bool ImGui::ArrowButtonEx(const char* str_id, ImGuiDir dir, ImVec2 size, ImGuiBu
     bool pressed = ButtonBehavior(bb, id, &hovered, &held, flags);
 
     // Render
-    const ImU32 bg_col = GetColorU32((held && hovered) ? ImGuiCol_ButtonActive : hovered ? ImGuiCol_ButtonHovered : ImGuiCol_Button);
-    const ImU32 text_col = GetColorU32(ImGuiCol_Text);
-    RenderNavCursor(bb, id);
-    RenderFrame(bb.Min, bb.Max, bg_col, true, g.Style.FrameRounding);
+    // KXX FORK: tab-scroll arrows (drawn while a tab bar is active) get NO bg fill,
+    // NO outline, and brighten the glyph on hover/held (like title-bar buttons).
+    // Standalone arrow buttons keep the frame + outline.
+    const bool kxx_tab_arrow = (g.CurrentTabBar != NULL);
+    ImU32 text_col;
+    if (kxx_tab_arrow)
+    {
+        RenderNavCursor(bb, id, ImGuiNavRenderCursorFlags_Compact);
+        text_col = (held ? IM_COL32(255,255,255,255) : hovered ? IM_COL32(235,235,235,255) : GetColorU32(ImGuiCol_Text));
+    }
+    else
+    {
+        const ImU32 bg_col = GetColorU32((held && hovered) ? ImGuiCol_ButtonActive : hovered ? ImGuiCol_ButtonHovered : ImGuiCol_Button);
+        text_col = GetColorU32(ImGuiCol_Text);
+        RenderNavCursor(bb, id);
+        RenderFrame(bb.Min, bb.Max, bg_col, true, g.Style.FrameRounding);
+        KxxHoverOutline(bb, false); // KXX FORK: standalone arrow button outline
+    }
     RenderArrow(window->DrawList, bb.Min + ImVec2(ImMax(0.0f, (size.x - g.FontSize) * 0.5f), ImMax(0.0f, (size.y - g.FontSize) * 0.5f)), text_col, dir);
 
     IMGUI_TEST_ENGINE_ITEM_INFO(id, str_id, g.LastItemData.StatusFlags);
@@ -923,11 +940,9 @@ bool ImGui::CloseButton(ImGuiID id, const ImVec2& pos)
         return pressed;
 
     // Render
-    ImU32 bg_col = GetColorU32(held ? ImGuiCol_ButtonActive : ImGuiCol_ButtonHovered);
-    if (hovered)
-        window->DrawList->AddRectFilled(bb.Min, bb.Max, bg_col);
+    // KXX FORK: no bg fill; cross brightens on hover/held instead.
     RenderNavCursor(bb, id, ImGuiNavRenderCursorFlags_Compact);
-    const ImU32 cross_col = GetColorU32(ImGuiCol_Text);
+    const ImU32 cross_col = (held ? IM_COL32(255,255,255,255) : hovered ? IM_COL32(235,235,235,255) : GetColorU32(ImGuiCol_Text));
     const ImVec2 cross_center = bb.GetCenter() - ImVec2(0.5f, 0.5f);
     const float cross_extent = g.FontSize * 0.5f * 0.7071f - 1.0f;
     const float cross_thickness = 1.0f * (float)(int)g.Style._MainScale; // FIXME-DPI
@@ -952,10 +967,8 @@ bool ImGui::CollapseButton(ImGuiID id, const ImVec2& pos, ImGuiDockNode* dock_no
 
     // Render
     //bool is_dock_menu = (window->DockNodeAsHost && !window->Collapsed);
-    ImU32 bg_col = GetColorU32((held && hovered) ? ImGuiCol_ButtonActive : hovered ? ImGuiCol_ButtonHovered : ImGuiCol_Button);
-    ImU32 text_col = GetColorU32(ImGuiCol_Text);
-    if (hovered || held)
-        window->DrawList->AddRectFilled(bb.Min, bb.Max, bg_col);
+    // KXX FORK: no bg fill; arrow brightens on hover/held instead.
+    ImU32 text_col = (held ? IM_COL32(255,255,255,255) : hovered ? IM_COL32(235,235,235,255) : GetColorU32(ImGuiCol_Text));
     RenderNavCursor(bb, id, ImGuiNavRenderCursorFlags_Compact);
 
     if (dock_node)
@@ -1298,6 +1311,7 @@ bool ImGui::Checkbox(const char* label, bool* v)
         ImU32 bg_col = GetColorU32((held && hovered) ? ImGuiCol_FrameBgActive : hovered ? ImGuiCol_FrameBgHovered : (mixed_value || checked) ? ImGuiCol_CheckboxSelectedBg : ImGuiCol_FrameBg);
         ImU32 check_col = GetColorU32(ImGuiCol_CheckMark);
         RenderFrame(check_bb.Min, check_bb.Max, bg_col, true, style.FrameRounding);
+        KxxHoverOutline(check_bb, false); // KXX FORK: box only
         if (mixed_value)
         {
             // Undocumented tristate/mixed/indeterminate checkbox (#2644)
@@ -1315,7 +1329,7 @@ bool ImGui::Checkbox(const char* label, bool* v)
     if (g.LogEnabled)
         LogRenderedText(&label_pos, mixed_value ? "[~]" : *v ? "[x]" : "[ ]");
     if (is_visible && label_size.x > 0.0f)
-        RenderText(label_pos, label, label_end, false);
+    { const bool _kxxb = KxxPushBrightText(); RenderText(label_pos, label, label_end, false); if (_kxxb) PopStyleColor(); } // KXX FORK
 
     IMGUI_TEST_ENGINE_ITEM_INFO(id, label, g.LastItemData.StatusFlags | ImGuiItemStatusFlags_Checkable | (*v ? ImGuiItemStatusFlags_Checked : 0));
     return pressed;
@@ -1401,6 +1415,7 @@ bool ImGui::RadioButton(const char* label, bool active)
     RenderNavCursor(total_bb, id);
     const int num_segment = window->DrawList->_CalcCircleAutoSegmentCount(radius);
     window->DrawList->AddCircleFilled(center, radius, GetColorU32((held && hovered) ? ImGuiCol_FrameBgActive : hovered ? ImGuiCol_FrameBgHovered : ImGuiCol_FrameBg), num_segment);
+    KxxHoverOutlineCircle(center, radius); // KXX FORK: circle only
     if (active)
     {
         const float pad = ImMax(1.0f, IM_TRUNC(square_sz / 6.0f));
@@ -1417,7 +1432,7 @@ bool ImGui::RadioButton(const char* label, bool active)
     if (g.LogEnabled)
         LogRenderedText(&label_pos, active ? "(x)" : "( )");
     if (label_size.x > 0.0f)
-        RenderText(label_pos, label, label_end, false);
+    { const bool _kxxb = KxxPushBrightText(); RenderText(label_pos, label, label_end, false); if (_kxxb) PopStyleColor(); } // KXX FORK
 
     IMGUI_TEST_ENGINE_ITEM_INFO(id, label, g.LastItemData.StatusFlags);
     return pressed;
@@ -1993,6 +2008,12 @@ bool ImGui::BeginCombo(const char* label, const char* preview_value, ImGuiComboF
             RenderArrow(window->DrawList, ImVec2(value_x2 + style.FramePadding.y, bb.Min.y + style.FramePadding.y), text_col, ImGuiDir_Down, 1.0f);
     }
     RenderFrameBorder(bb.Min, bb.Max, style.FrameRounding);
+    // KXX FORK: combo outlines on hover, but NEVER while the dropdown is open.
+    if (hovered && !popup_open)
+    {
+        ImRect kxx_r = bb; kxx_r.ClipWith(window->ClipRect);
+        window->DrawList->AddRect(kxx_r.Min, kxx_r.Max, IM_COL32(150,150,150,200), style.FrameRounding, 0, 1.0f);
+    }
 
     // Custom preview
     if (flags & ImGuiComboFlags_CustomPreview)
@@ -2007,7 +2028,7 @@ bool ImGui::BeginCombo(const char* label, const char* preview_value, ImGuiComboF
     {
         if (g.LogEnabled)
             LogSetNextTextDecoration("{", "}");
-        RenderTextClipped(bb.Min + style.FramePadding, ImVec2(value_x2, bb.Max.y), preview_value, NULL, NULL);
+        { const bool _kxxb = KxxPushBrightText(); RenderTextClipped(bb.Min + style.FramePadding, ImVec2(value_x2, bb.Max.y), preview_value, NULL, NULL); if (_kxxb) PopStyleColor(); } // KXX FORK
     }
     if (label_size.x > 0)
         RenderText(ImVec2(bb.Max.x + style.ItemInnerSpacing.x, bb.Min.y + style.FramePadding.y), label, label_end, false);
@@ -2788,6 +2809,7 @@ bool ImGui::DragScalar(const char* label, ImGuiDataType data_type, void* p_data,
     const ImU32 frame_col = GetColorU32(g.ActiveId == id ? ImGuiCol_FrameBgActive : hovered ? ImGuiCol_FrameBgHovered : ImGuiCol_FrameBg);
     RenderNavCursor(frame_bb, id);
     RenderFrame(frame_bb.Min, frame_bb.Max, frame_col, false, style.FrameRounding);
+    KxxHoverOutline(frame_bb, false); // KXX FORK
     if (color_marker != 0 && style.ColorMarkerSize > 0.0f)
         RenderColorComponentMarker(frame_bb, GetColorU32(color_marker), style.FrameRounding);
     RenderFrameBorder(frame_bb.Min, frame_bb.Max, g.Style.FrameRounding);
@@ -2802,7 +2824,7 @@ bool ImGui::DragScalar(const char* label, ImGuiDataType data_type, void* p_data,
     const char* value_buf_end = value_buf + DataTypeFormatString(value_buf, IM_COUNTOF(value_buf), data_type, p_data, format);
     if (g.LogEnabled)
         LogSetNextTextDecoration("{", "}");
-    RenderTextClipped(frame_bb.Min, frame_bb.Max, value_buf, value_buf_end, NULL, ImVec2(0.5f, 0.5f));
+    { const bool _kxxb = KxxPushBrightText(); RenderTextClipped(frame_bb.Min, frame_bb.Max, value_buf, value_buf_end, NULL, ImVec2(0.5f, 0.5f)); if (_kxxb) PopStyleColor(); } // KXX FORK
 
     if (label_size.x > 0.0f)
         RenderText(ImVec2(frame_bb.Max.x + style.ItemInnerSpacing.x, frame_bb.Min.y + style.FramePadding.y), label, label_end, false);
@@ -3381,6 +3403,7 @@ bool ImGui::SliderScalar(const char* label, ImGuiDataType data_type, void* p_dat
     const ImU32 frame_col = GetColorU32(g.ActiveId == id ? ImGuiCol_FrameBgActive : hovered ? ImGuiCol_FrameBgHovered : ImGuiCol_FrameBg);
     RenderNavCursor(frame_bb, id);
     RenderFrame(frame_bb.Min, frame_bb.Max, frame_col, false, style.FrameRounding);
+    KxxHoverOutline(frame_bb, false); // KXX FORK
     if (color_marker != 0 && style.ColorMarkerSize > 0.0f)
         RenderColorComponentMarker(frame_bb, GetColorU32(color_marker), style.FrameRounding);
     RenderFrameBorder(frame_bb.Min, frame_bb.Max, g.Style.FrameRounding);
@@ -3400,7 +3423,7 @@ bool ImGui::SliderScalar(const char* label, ImGuiDataType data_type, void* p_dat
     const char* value_buf_end = value_buf + DataTypeFormatString(value_buf, IM_COUNTOF(value_buf), data_type, p_data, format);
     if (g.LogEnabled)
         LogSetNextTextDecoration("{", "}");
-    RenderTextClipped(frame_bb.Min, frame_bb.Max, value_buf, value_buf_end, NULL, ImVec2(0.5f, 0.5f));
+    { const bool _kxxb = KxxPushBrightText(); RenderTextClipped(frame_bb.Min, frame_bb.Max, value_buf, value_buf_end, NULL, ImVec2(0.5f, 0.5f)); if (_kxxb) PopStyleColor(); } // KXX FORK
 
     if (label_size.x > 0.0f)
         RenderText(ImVec2(frame_bb.Max.x + style.ItemInnerSpacing.x, frame_bb.Min.y + style.FramePadding.y), label, label_end, false);
@@ -5457,6 +5480,7 @@ bool ImGui::InputTextEx(const char* label, const char* hint, char* buf, int buf_
     {
         RenderNavCursor(frame_bb, id);
         RenderFrame(frame_bb.Min, frame_bb.Max, GetColorU32(ImGuiCol_FrameBg), true, style.FrameRounding);
+        KxxHoverOutline(frame_bb, false); // KXX FORK: outline on hover AND active
     }
 
     ImVec2 draw_pos = is_multiline ? draw_window->DC.CursorPos : frame_bb.Min + style.FramePadding;
@@ -7099,7 +7123,9 @@ bool ImGui::TreeNodeBehavior(ImGuiID id, ImGuiTreeNodeFlags flags, const char* l
         if (display_frame)
         {
             // Framed type
-            const ImU32 bg_col = GetColorU32((held && hovered) ? ImGuiCol_HeaderActive : hovered ? ImGuiCol_HeaderHovered : ImGuiCol_Header);
+            const bool kxx_is_header = (flags & ImGuiTreeNodeFlags_CollapsingHeader) != 0; // KXX FORK
+            const ImU32 bg_col = kxx_is_header ? GetColorU32(ImGuiCol_WindowBg)
+                : GetColorU32((held && hovered) ? ImGuiCol_HeaderActive : hovered ? ImGuiCol_HeaderHovered : ImGuiCol_Header);
             RenderFrame(frame_bb.Min, frame_bb.Max, bg_col, true, style.FrameRounding);
             RenderNavCursor(frame_bb, id, nav_render_cursor_flags);
             if (span_all_columns && !span_all_columns_label)
@@ -7107,7 +7133,7 @@ bool ImGui::TreeNodeBehavior(ImGuiID id, ImGuiTreeNodeFlags flags, const char* l
             if (flags & ImGuiTreeNodeFlags_Bullet)
                 RenderBullet(window->DrawList, ImVec2(text_pos.x - text_offset_x * 0.60f, text_pos.y + g.FontSize * 0.5f), text_col);
             else if (!is_leaf)
-                RenderArrow(window->DrawList, ImVec2(text_pos.x - text_offset_x + padding.x, text_pos.y), text_col, is_open ? ((flags & ImGuiTreeNodeFlags_UpsideDownArrow) ? ImGuiDir_Up : ImGuiDir_Down) : ImGuiDir_Right, 1.0f);
+                KxxRenderChevron(window->DrawList, ImVec2(text_pos.x - text_offset_x + padding.x, text_pos.y), text_col, g.FontSize, is_open); // KXX FORK
             else // Leaf without bullet, left-adjusted text
                 text_pos.x -= text_offset_x - padding.x;
             if (flags & ImGuiTreeNodeFlags_ClipLabelForTrailingButton)
@@ -7118,18 +7144,14 @@ bool ImGui::TreeNodeBehavior(ImGuiID id, ImGuiTreeNodeFlags flags, const char* l
         else
         {
             // Unframed typed for tree nodes
-            if (hovered || selected)
-            {
-                const ImU32 bg_col = GetColorU32((held && hovered) ? ImGuiCol_HeaderActive : hovered ? ImGuiCol_HeaderHovered : ImGuiCol_Header);
-                RenderFrame(frame_bb.Min, frame_bb.Max, bg_col, false);
-            }
+            // KXX FORK: no background on hover/select (flattened).
             RenderNavCursor(frame_bb, id, nav_render_cursor_flags);
             if (span_all_columns && !span_all_columns_label)
                 TablePopBackgroundChannel();
             if (flags & ImGuiTreeNodeFlags_Bullet)
                 RenderBullet(window->DrawList, ImVec2(text_pos.x - text_offset_x * 0.5f, text_pos.y + g.FontSize * 0.5f), text_col);
             else if (!is_leaf)
-                RenderArrow(window->DrawList, ImVec2(text_pos.x - text_offset_x + padding.x, text_pos.y + g.FontSize * 0.15f), text_col, is_open ? ((flags & ImGuiTreeNodeFlags_UpsideDownArrow) ? ImGuiDir_Up : ImGuiDir_Down) : ImGuiDir_Right, 0.70f);
+                KxxRenderChevron(window->DrawList, ImVec2(text_pos.x - text_offset_x + padding.x, text_pos.y + g.FontSize * 0.15f), text_col, g.FontSize, is_open); // KXX FORK
             if (g.LogEnabled)
                 LogSetNextTextDecoration(">", NULL);
         }
@@ -7138,10 +7160,13 @@ bool ImGui::TreeNodeBehavior(ImGuiID id, ImGuiTreeNodeFlags flags, const char* l
             TreeNodeDrawLineToChildNode(ImVec2(text_pos.x - text_offset_x + padding.x, text_pos.y + g.FontSize * 0.5f));
 
         // Label
+        const bool kxx_hb = (id == g.HoveredId); // KXX FORK: framed AND unframed tree nodes
+        if (kxx_hb) PushStyleColor(ImGuiCol_Text, IM_COL32(235,235,235,255));
         if (display_frame)
             RenderTextClipped(text_pos, frame_bb.Max, label, label_end, &label_size);
         else
             RenderText(text_pos, label, label_end, false);
+        if (kxx_hb) PopStyleColor();
 
         if (span_all_columns_label)
             TablePopBackgroundChannel();
@@ -7524,7 +7549,7 @@ bool ImGui::Selectable(const char* label, bool selected, ImGuiSelectableFlags fl
 
     // Text stays at the submission position. Alignment/clipping extents ignore SpanAllColumns.
     if (is_visible)
-        RenderTextClipped(pos, ImVec2(ImMin(pos.x + size.x, window->WorkRect.Max.x), pos.y + size.y), label, label_end, &label_size, style.SelectableTextAlign, &bb);
+        { const bool _kxxb = KxxPushBrightText(); RenderTextClipped(pos, ImVec2(ImMin(pos.x + size.x, window->WorkRect.Max.x), pos.y + size.y), label, label_end, &label_size, style.SelectableTextAlign, &bb); if (_kxxb) PopStyleColor(); } // KXX FORK
 
 #ifdef IMGUI_DEBUG_BOXSELECT
     if (g.BoxSelectState.UnclipMode) { GetForegroundDrawList()->AddText(pos, IM_COL32(255,255,0,200), label, label_end); }
@@ -9415,7 +9440,9 @@ bool ImGui::BeginMenuEx(const char* label, const char* icon, bool enabled)
         window->DC.CursorPos.x += IM_TRUNC(style.ItemSpacing.x * 0.5f);
         PushStyleVarX(ImGuiStyleVar_ItemSpacing, style.ItemSpacing.x * 2.0f);
         ImVec2 text_pos(window->DC.CursorPos.x + offsets->OffsetLabel, pos.y + window->DC.CurrLineTextBaseOffset);
+        PushStyleColor(ImGuiCol_Header, IM_COL32(70, 70, 70, 255)); PushStyleColor(ImGuiCol_HeaderHovered, IM_COL32(70, 70, 70, 255)); PushStyleColor(ImGuiCol_HeaderActive, IM_COL32(85, 85, 85, 255)); // KXX FORK
         pressed = Selectable("", menu_is_open, selectable_flags, label_size);
+        PopStyleColor(3);
         LogSetNextTextDecoration("[", "]");
         RenderText(text_pos, label, label_end, false);
         PopStyleVar();
@@ -9432,7 +9459,9 @@ bool ImGui::BeginMenuEx(const char* label, const char* icon, bool enabled)
         float min_w = offsets->DeclColumns(icon_w, label_size.x, 0.0f, checkmark_w); // Feedback to next frame
         float extra_w = ImMax(0.0f, GetContentRegionAvail().x - min_w);
         ImVec2 text_pos(window->DC.CursorPos.x, pos.y + window->DC.CurrLineTextBaseOffset);
+        PushStyleColor(ImGuiCol_Header, IM_COL32(70, 70, 70, 255)); PushStyleColor(ImGuiCol_HeaderHovered, IM_COL32(70, 70, 70, 255)); PushStyleColor(ImGuiCol_HeaderActive, IM_COL32(85, 85, 85, 255)); // KXX FORK
         pressed = Selectable("", menu_is_open, selectable_flags | ImGuiSelectableFlags_SpanAvailWidth, ImVec2(min_w, label_size.y));
+        PopStyleColor(3);
         LogSetNextTextDecoration("", ">");
         RenderText(ImVec2(text_pos.x + offsets->OffsetLabel, text_pos.y), label, label_end, false);
         if (icon_w > 0.0f)
@@ -9635,10 +9664,12 @@ bool ImGui::MenuItemEx(const char* label, const char* icon, const char* shortcut
         window->DC.CursorPos.x += IM_TRUNC(style.ItemSpacing.x * 0.5f);
         ImVec2 text_pos(window->DC.CursorPos.x + offsets->OffsetLabel, window->DC.CursorPos.y + window->DC.CurrLineTextBaseOffset);
         PushStyleVarX(ImGuiStyleVar_ItemSpacing, style.ItemSpacing.x * 2.0f);
+        PushStyleColor(ImGuiCol_Header, IM_COL32(70, 70, 70, 255)); PushStyleColor(ImGuiCol_HeaderHovered, IM_COL32(70, 70, 70, 255)); PushStyleColor(ImGuiCol_HeaderActive, IM_COL32(85, 85, 85, 255)); // KXX FORK
         pressed = Selectable("", selected, selectable_flags, ImVec2(label_size.x, 0.0f));
+        PopStyleColor(3);
         PopStyleVar();
         if (g.LastItemData.StatusFlags & ImGuiItemStatusFlags_Visible)
-            RenderText(text_pos, label, label_end, false);
+        { const bool _kxxb = KxxPushBrightText(); RenderText(text_pos, label, label_end, false); if (_kxxb) PopStyleColor(); } // KXX FORK
         window->DC.CursorPos.x += IM_TRUNC(style.ItemSpacing.x * (-1.0f + 0.5f)); // -1 spacing to compensate the spacing added when Selectable() did a SameLine(). It would also work to call SameLine() ourselves after the PopStyleVar().
     }
     else
@@ -9652,10 +9683,12 @@ bool ImGui::MenuItemEx(const char* label, const char* icon, const char* shortcut
         float min_w = offsets->DeclColumns(icon_w, label_size.x, shortcut_w, checkmark_w); // Feedback for next frame
         float stretch_w = ImMax(0.0f, GetContentRegionAvail().x - min_w);
         ImVec2 text_pos(pos.x, pos.y + window->DC.CurrLineTextBaseOffset);
+        PushStyleColor(ImGuiCol_Header, IM_COL32(70, 70, 70, 255)); PushStyleColor(ImGuiCol_HeaderHovered, IM_COL32(70, 70, 70, 255)); PushStyleColor(ImGuiCol_HeaderActive, IM_COL32(85, 85, 85, 255)); // KXX FORK
         pressed = Selectable("", false, selectable_flags | ImGuiSelectableFlags_SpanAvailWidth, ImVec2(min_w, label_size.y));
+        PopStyleColor(3);
         if (g.LastItemData.StatusFlags & ImGuiItemStatusFlags_Visible)
         {
-            RenderText(text_pos + ImVec2(offsets->OffsetLabel, 0.0f), label, label_end, false);
+            { const bool _kxxb = KxxPushBrightText(); RenderText(text_pos + ImVec2(offsets->OffsetLabel, 0.0f), label, label_end, false); if (_kxxb) PopStyleColor(); } // KXX FORK
             if (icon_w > 0.0f)
                 RenderText(text_pos + ImVec2(offsets->OffsetIcon, 0.0f), icon);
             if (shortcut_w > 0.0f)
@@ -9882,11 +9915,11 @@ bool    ImGui::BeginTabBarEx(ImGuiTabBar* tab_bar, const ImRect& tab_bar_bb, ImG
 
     // Draw separator
     // (it would be misleading to draw this in EndTabBar() suggesting that it may be drawn over tabs, as tab bar are appendable)
-    const ImU32 col = GetColorU32((flags & ImGuiTabBarFlags_IsFocused) ? ImGuiCol_TabSelected : ImGuiCol_TabDimmedSelected);
+    // KXX FORK: grey separator (was teal ImGuiCol_TabSelected on focus).
     if (g.Style.TabBarBorderSize > 0.0f)
     {
         const float y = tab_bar->BarRect.Max.y;
-        window->DrawList->AddRectFilled(ImVec2(tab_bar->SeparatorMinX, y - g.Style.TabBarBorderSize), ImVec2(tab_bar->SeparatorMaxX, y), col);
+        window->DrawList->AddRectFilled(ImVec2(tab_bar->SeparatorMinX, y - g.Style.TabBarBorderSize), ImVec2(tab_bar->SeparatorMaxX, y), IM_COL32(70, 70, 70, 255));
     }
     return true;
 }
@@ -10469,7 +10502,9 @@ static ImGuiTabItem* ImGui::TabBarScrollingButtons(ImGuiTabBar* tab_bar)
     ImGuiContext& g = *GImGui;
     ImGuiWindow* window = g.CurrentWindow;
 
-    const ImVec2 arrow_button_size(g.FontSize - 2.0f, g.FontSize + g.Style.FramePadding.y * 2.0f);
+    // KXX FORK: scroll arrows fill the (possibly tall) bar height so the glyph is
+    // vertically centered, and are drawn with a slightly bigger glyph (font push below).
+    const ImVec2 arrow_button_size(g.FontSize * 1.15f, tab_bar->BarRect.GetHeight());
     const float scrolling_buttons_width = arrow_button_size.x * 2.0f;
 
     const ImVec2 backup_cursor_pos = window->DC.CursorPos;
@@ -10487,12 +10522,14 @@ static ImGuiTabItem* ImGui::TabBarScrollingButtons(ImGuiTabBar* tab_bar)
     g.IO.KeyRepeatDelay = 0.250f;
     g.IO.KeyRepeatRate = 0.200f;
     float x = ImMax(tab_bar->BarRect.Min.x, tab_bar->BarRect.Max.x - scrolling_buttons_width);
+    PushFont(NULL, g.FontSize * 1.15f); // KXX FORK: bigger scroll-arrow glyph
     window->DC.CursorPos = ImVec2(x, tab_bar->BarRect.Min.y);
     if (ArrowButtonEx("##<", ImGuiDir_Left, arrow_button_size, ImGuiButtonFlags_PressedOnClick))
         select_dir = -1;
     window->DC.CursorPos = ImVec2(x + arrow_button_size.x, tab_bar->BarRect.Min.y);
     if (ArrowButtonEx("##>", ImGuiDir_Right, arrow_button_size, ImGuiButtonFlags_PressedOnClick))
         select_dir = +1;
+    PopFont(); // KXX FORK: end bigger scroll-arrow glyph
     PopItemFlag();
     PopStyleColor(2);
     g.IO.KeyRepeatRate = backup_repeat_rate;
@@ -10763,6 +10800,10 @@ bool    ImGui::TabItemEx(ImGuiTabBar* tab_bar, const char* label, bool* p_open, 
         window->DC.CursorPos = tab_bar->BarRect.Min + ImVec2(tab->Offset, 0.0f);
     ImVec2 pos = window->DC.CursorPos;
     ImRect bb(pos, pos + size);
+    // KXX FORK: docked tabs fill the (taller) tab-bar height so the pill is tall.
+    const bool kxx_is_dock = (tab_bar->Flags & ImGuiTabBarFlags_DockNode) != 0;
+    if (kxx_is_dock)
+        bb.Max.y = pos.y + tab_bar->BarRect.GetHeight();
 
     // We don't have CPU clipping primitives to clip the CloseButton (until it becomes a texture), so need to add an extra draw call (temporary in the case of vertical animation)
     const bool want_clip_rect = is_central_section && (bb.Min.x < tab_bar->ScrollingRectMinX || bb.Max.x > tab_bar->ScrollingRectMaxX);
@@ -10878,9 +10919,21 @@ bool    ImGui::TabItemEx(ImGuiTabBar* tab_bar, const char* label, bool* p_open, 
     if (is_visible)
     {
         ImDrawList* display_draw_list = window->DrawList;
-        const ImU32 tab_col = GetColorU32((held || hovered) ? ImGuiCol_TabHovered : tab_contents_visible ? (tab_bar_focused ? ImGuiCol_TabSelected : ImGuiCol_TabDimmedSelected) : (tab_bar_focused ? ImGuiCol_Tab : ImGuiCol_TabDimmed));
+        const ImU32 tab_col = GetColorU32(
+            tab_contents_visible ? (tab_bar_focused ? ImGuiCol_TabSelected : ImGuiCol_TabDimmedSelected)
+            : (held || hovered)  ? ImGuiCol_TabHovered
+            : (tab_bar_focused ? ImGuiCol_Tab : ImGuiCol_TabDimmed)); // KXX FORK
         TabItemBackground(display_draw_list, bb, flags, tab_col);
-        if (tab_contents_visible && (tab_bar->Flags & ImGuiTabBarFlags_DrawSelectedOverline) && style.TabBarOverlineSize > 0.0f)
+        // KXX FORK: hover outline on tabs (pill-shaped), matching other widgets.
+        if (hovered)
+        {
+            const float kpy = 2.0f;
+            ImVec2 p1(bb.Min.x, bb.Min.y + kpy + 1.0f);
+            ImVec2 p2(bb.Max.x, bb.Max.y - style.TabBarBorderSize - kpy);
+            const float mr = ImMin(bb.GetWidth() * 0.5f - 1.0f, (p2.y - p1.y) * 0.5f);
+            display_draw_list->AddRect(p1, p2, IM_COL32(150,150,150,200), ImMax(0.0f, ImMin(style.TabRounding, mr)), ImDrawFlags_RoundCornersAll, 1.0f);
+        }
+        if (false) // KXX FORK: overline removed entirely (no top-edge line on tabs)
         {
             // Might be moved to TabItemBackground() ?
             ImVec2 tl = bb.GetTL() + ImVec2(0, 1.0f * g.CurrentDpiScale);
@@ -10912,7 +10965,11 @@ bool    ImGui::TabItemEx(ImGuiTabBar* tab_bar, const char* label, bool* p_open, 
         const ImGuiID close_button_id = p_open ? GetIDWithSeed("#CLOSE", NULL, docked_window ? docked_window->ID : id) : 0;
         bool just_closed;
         bool text_clipped;
-        TabItemLabelAndCloseButton(display_draw_list, bb, tab_just_unsaved ? (flags & ~ImGuiTabItemFlags_UnsavedDocument) : flags, tab_bar->FramePadding, label, id, close_button_id, tab_contents_visible, &just_closed, &text_clipped);
+        // KXX FORK: for docked (tall) pills, center the normal-size label vertically.
+        ImVec2 kxx_fp = tab_bar->FramePadding;
+        if (kxx_is_dock)
+            kxx_fp.y = ImMax(kxx_fp.y, (bb.GetHeight() - g.FontSize) * 0.5f);
+        TabItemLabelAndCloseButton(display_draw_list, bb, tab_just_unsaved ? (flags & ~ImGuiTabItemFlags_UnsavedDocument) : flags, kxx_fp, label, id, close_button_id, tab_contents_visible, &just_closed, &text_clipped);
         if (just_closed && p_open != NULL)
         {
             *p_open = false;
@@ -10975,11 +11032,11 @@ ImVec2 ImGui::TabItemCalcSize(const char* label, bool has_close_button_or_unsave
 {
     ImGuiContext& g = *GImGui;
     ImVec2 label_size = CalcTextSize(label, NULL, true);
+    // KXX FORK: the close (X) button no longer grows the pill — the pill is sized
+    // for the label only, and the X overlays it (text truncates via ellipsis).
+    IM_UNUSED(has_close_button_or_unsaved_marker);
     ImVec2 size = ImVec2(label_size.x + g.Style.FramePadding.x, label_size.y + g.Style.FramePadding.y * 2.0f);
-    if (has_close_button_or_unsaved_marker)
-        size.x += g.Style.FramePadding.x + (g.Style.ItemInnerSpacing.x + g.FontSize); // We use Y intentionally to fit the close button circle.
-    else
-        size.x += g.Style.FramePadding.x + 1.0f;
+    size.x += g.Style.FramePadding.x + 1.0f;
     return ImVec2(ImMin(size.x, TabBarCalcMaxTabWidth()), size.y);
 }
 
@@ -10995,22 +11052,16 @@ void ImGui::TabItemBackground(ImDrawList* draw_list, const ImRect& bb, ImGuiTabI
     const float width = bb.GetWidth();
     IM_UNUSED(flags);
     IM_ASSERT(width > 0.0f);
-    const float rounding = ImMax(0.0f, ImMin((flags & ImGuiTabItemFlags_Button) ? g.Style.FrameRounding : g.Style.TabRounding, width * 0.5f - 1.0f));
-    const float y1 = bb.Min.y + 1.0f;
-    const float y2 = bb.Max.y - g.Style.TabBarBorderSize;
-    draw_list->PathLineTo(ImVec2(bb.Min.x, y2));
-    draw_list->PathArcToFast(ImVec2(bb.Min.x + rounding, y1 + rounding), rounding, 6, 9);
-    draw_list->PathArcToFast(ImVec2(bb.Max.x - rounding, y1 + rounding), rounding, 9, 12);
-    draw_list->PathLineTo(ImVec2(bb.Max.x, y2));
-    draw_list->PathFillConvex(col);
+    // KXX FORK: detached pill tab — rounded on ALL four corners, inset top+bottom.
+    const float kxx_pad_y = 2.0f;                 // spacing above & below the pill
+    const float y1 = bb.Min.y + kxx_pad_y + 1.0f;
+    const float y2 = bb.Max.y - g.Style.TabBarBorderSize - kxx_pad_y;
+    const float max_round = ImMin(width * 0.5f - 1.0f, (y2 - y1) * 0.5f);
+    const float rounding = ImMax(0.0f, ImMin(g.Style.TabRounding, max_round));
+    draw_list->AddRectFilled(ImVec2(bb.Min.x, y1), ImVec2(bb.Max.x, y2), col, rounding, ImDrawFlags_RoundCornersAll);
     if (g.Style.TabBorderSize > 0.0f)
-    {
-        draw_list->PathLineTo(ImVec2(bb.Min.x + 0.5f, y2));
-        draw_list->PathArcToFast(ImVec2(bb.Min.x + rounding + 0.5f, y1 + rounding + 0.5f), rounding, 6, 9);
-        draw_list->PathArcToFast(ImVec2(bb.Max.x - rounding - 0.5f, y1 + rounding + 0.5f), rounding, 9, 12);
-        draw_list->PathLineTo(ImVec2(bb.Max.x - 0.5f, y2));
-        draw_list->PathStroke(GetColorU32(ImGuiCol_Border), g.Style.TabBorderSize);
-    }
+        draw_list->AddRect(ImVec2(bb.Min.x, y1), ImVec2(bb.Max.x, y2), GetColorU32(ImGuiCol_Border), rounding, ImDrawFlags_RoundCornersAll, g.Style.TabBorderSize);
+    IM_UNUSED(width);
 }
 
 // Render text label (with custom clipping) + Unsaved Document marker + Close Button logic

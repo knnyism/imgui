@@ -4095,6 +4095,67 @@ void ImGui::RenderColorComponentMarker(const ImRect& bb, ImU32 col, float roundi
     RenderRectFilledInRangeH(window->DrawList, bb, col, bb.Min.x, ImMin(bb.Min.x + g.Style.ColorMarkerSize, bb.Max.x), rounding);
 }
 
+// ==== KXX FORK: docked tab bar height (single source of truth) ==========
+// The docked tab bar / pill height. Used by DockNodeCalcTabBarLayout AND the
+// docking hit-test/preview/content-offset sites so they all agree (otherwise
+// the preview bleeds into the tab bar and the drag region is the wrong size).
+static inline float KxxDockTabBarHeight()
+{
+    ImGuiContext& g = *GImGui;
+    return g.FontSize * 1.15f + g.Style.FramePadding.y * 2.0f + 3.0f;
+}
+// ==== KXX FORK: hover styling + chevron helpers =========================
+void ImGui::KxxHoverOutline(const ImRect& bb, bool active_only)
+{
+    ImGuiContext& g = *GImGui;
+    const ImGuiID id = g.LastItemData.ID;
+    if (id == 0) return;
+    const bool active = (id == g.ActiveId), hovered = (id == g.HoveredId);
+    if (active_only) { if (!active) return; }
+    else if (!hovered && !active) return;
+    ImGuiWindow* w = g.CurrentWindow;
+    const ImU32 stroke = active ? IM_COL32(255,255,255,200) : IM_COL32(150,150,150,200);
+    ImRect r = bb; r.ClipWith(w->ClipRect);
+    w->DrawList->AddRect(r.Min, r.Max, stroke, g.Style.FrameRounding, 1.0f, 0);
+}
+void ImGui::KxxHoverOutlineCircle(const ImVec2& center, float radius)
+{
+    ImGuiContext& g = *GImGui;
+    const ImGuiID id = g.LastItemData.ID;
+    if (id == 0) return;
+    const bool active = (id == g.ActiveId), hovered = (id == g.HoveredId);
+    if (!hovered && !active) return;
+    ImGuiWindow* w = g.CurrentWindow;
+    const ImU32 stroke = active ? IM_COL32(255,255,255,200) : IM_COL32(150,150,150,200);
+    const int segs = w->DrawList->_CalcCircleAutoSegmentCount(radius);
+    w->DrawList->AddCircle(center, radius, stroke, segs, 1.0f);
+}
+bool ImGui::KxxPushBrightText()
+{
+    ImGuiContext& g = *GImGui;
+    const ImGuiID id = g.LastItemData.ID;
+    if (id == 0) return false;
+    const bool active = (id == g.ActiveId), hovered = (id == g.HoveredId);
+    if (!hovered && !active) return false;
+    PushStyleColor(ImGuiCol_Text, active ? IM_COL32(255,255,255,255) : IM_COL32(235,235,235,255));
+    return true;
+}
+void ImGui::KxxRenderChevron(ImDrawList* dl, ImVec2 pos, ImU32 col, float sz, bool is_open)
+{
+    const float t = ImMax(1.0f, sz * 0.10f);
+    const float h = sz * 0.5f;
+    const float cx = pos.x + h, cy = pos.y + h;
+    const float a = sz * 0.28f;
+    if (is_open) {
+        dl->AddLine(ImVec2(cx - a, cy - a * 0.5f), ImVec2(cx, cy + a * 0.5f), col, t);
+        dl->AddLine(ImVec2(cx + a, cy - a * 0.5f), ImVec2(cx, cy + a * 0.5f), col, t);
+    } else {
+        dl->AddLine(ImVec2(cx - a * 0.5f, cy - a), ImVec2(cx + a * 0.5f, cy), col, t);
+        dl->AddLine(ImVec2(cx - a * 0.5f, cy + a), ImVec2(cx + a * 0.5f, cy), col, t);
+    }
+}
+// ==== END KXX FORK ======================================================
+
 void ImGui::RenderNavCursor(const ImRect& bb, ImGuiID id, ImGuiNavRenderCursorFlags flags)
 {
     ImGuiContext& g = *GImGui;
@@ -5537,10 +5598,18 @@ void ImGui::UpdateMouseMovingWindowEndFrame()
             // Please note how StartMouseMovingWindow() and StopMouseMovingWindow() and not entirely symmetrical, at the later doesn't clear ActiveId.
 
             // Cancel moving if clicked outside of title bar
+            // KXX FORK: use an explicitly-computed title-bar rect (full enlarged
+            // height + menu bar) so dragging works across the whole taller title
+            // bar. The stock TitleBarRect() check was leaving a dead zone in the
+            // lower part of our enlarged title bars.
             if ((hovered_window->BgClickFlags & ImGuiWindowBgClickFlags_Move) == 0) // set by io.ConfigWindowsMoveFromTitleBarOnly
                 if (!(hovered_root->Flags & ImGuiWindowFlags_NoTitleBar) || hovered_root->DockIsActive)
-                    if (!hovered_root->TitleBarRect().Contains(g.IO.MouseClickedPos[0]))
+                {
+                    ImRect kxx_tb = hovered_root->TitleBarRect();
+                    kxx_tb.Max.y += hovered_root->MenuBarHeight; // also allow the menu-bar row to drag
+                    if (!kxx_tb.Contains(g.IO.MouseClickedPos[0]))
                         g.MovingWindow = NULL;
+                }
 
             // Cancel moving if clicked over an item which was disabled or inhibited by popups
             // (when g.HoveredIdIsDisabled == true && g.HoveredId == 0 we are inhibited by popups, when g.HoveredIdIsDisabled == true && g.HoveredId != 0 we are over a disabled item)
@@ -7604,9 +7673,17 @@ void ImGui::RenderWindowDecorations(ImGuiWindow* window, const ImRect& title_bar
         {
             ImRect menu_bar_rect = window->MenuBarRect();
             menu_bar_rect.ClipWith(window->Rect());  // Soft clipping, in particular child window don't have minimum size covering the menu bar so this is useful for them.
+            // KXX FORK: inset by the window border so the menu bar bg doesn't paint over the left/right borders.
+            menu_bar_rect.Min.x += window_border_size;
+            menu_bar_rect.Max.x -= window_border_size;
             window->DrawList->AddRectFilled(menu_bar_rect.Min, menu_bar_rect.Max, GetColorU32(ImGuiCol_MenuBarBg), (flags & ImGuiWindowFlags_NoTitleBar) ? window_rounding : 0.0f, ImDrawFlags_RoundCornersTop);
-            if (style.FrameBorderSize > 0.0f && menu_bar_rect.Max.y < window->Pos.y + window->Size.y)
-                window->DrawList->AddLineH(menu_bar_rect.Min.x + window_border_size * 0.5f, menu_bar_rect.Max.x - window_border_size * 0.5f, menu_bar_rect.Max.y, GetColorU32(ImGuiCol_Border), style.FrameBorderSize);
+            // KXX FORK: line between the title bar and the menu bar (top edge), when a title bar exists.
+            if (!(flags & ImGuiWindowFlags_NoTitleBar))
+                window->DrawList->AddLineH(menu_bar_rect.Min.x + window_border_size * 0.5f, menu_bar_rect.Max.x - window_border_size * 0.5f, menu_bar_rect.Min.y, GetColorU32(ImGuiCol_Border), 1.0f);
+            // KXX FORK: always draw the menu bar's bottom separator line (independent
+            // of FrameBorderSize, which stays 0 so widgets aren't bordered).
+            if (menu_bar_rect.Max.y < window->Pos.y + window->Size.y)
+                window->DrawList->AddLineH(menu_bar_rect.Min.x + window_border_size * 0.5f, menu_bar_rect.Max.x - window_border_size * 0.5f, menu_bar_rect.Max.y, GetColorU32(ImGuiCol_Border), 1.0f);
         }
 
         // Docking: Unhide tab bar (small triangle in the corner), drag from small triangle to quickly undock
@@ -7679,25 +7756,29 @@ void ImGui::RenderWindowTitleBarContents(ImGuiWindow* window, const ImRect& titl
     window->DC.NavLayerCurrent = ImGuiNavLayer_Menu;
 
     // Layout buttons
-    // FIXME: Would be nice to generalize the subtleties expressed here into reusable code.
+    // KXX FORK: scale close/collapse buttons to match the bigger title text, and
+    // vertically center them in the taller title bar. Push a bigger font so the
+    // buttons (which size their glyph to g.FontSize internally) scale too.
+    PushFont(NULL, g.FontSize * 1.30f);
     float pad_l = style.FramePadding.x;
     float pad_r = style.FramePadding.x;
     float button_sz = g.FontSize;
+    const float kxx_btn_y = title_bar_rect.Min.y + (title_bar_rect.GetHeight() - button_sz) * 0.5f; // KXX FORK: centered
     ImVec2 close_button_pos;
     ImVec2 collapse_button_pos;
     if (has_close_button)
     {
-        close_button_pos = ImVec2(title_bar_rect.Max.x - pad_r - button_sz, title_bar_rect.Min.y + style.FramePadding.y);
+        close_button_pos = ImVec2(title_bar_rect.Max.x - pad_r - button_sz, kxx_btn_y); // KXX FORK
         pad_r += button_sz + style.ItemInnerSpacing.x;
     }
     if (has_collapse_button && style.WindowMenuButtonPosition == ImGuiDir_Right)
     {
-        collapse_button_pos = ImVec2(title_bar_rect.Max.x - pad_r - button_sz, title_bar_rect.Min.y + style.FramePadding.y);
+        collapse_button_pos = ImVec2(title_bar_rect.Max.x - pad_r - button_sz, kxx_btn_y); // KXX FORK
         pad_r += button_sz + style.ItemInnerSpacing.x;
     }
     if (has_collapse_button && style.WindowMenuButtonPosition == ImGuiDir_Left)
     {
-        collapse_button_pos = ImVec2(title_bar_rect.Min.x + pad_l, title_bar_rect.Min.y + style.FramePadding.y);
+        collapse_button_pos = ImVec2(title_bar_rect.Min.x + pad_l, kxx_btn_y); // KXX FORK
         pad_l += button_sz + style.ItemInnerSpacing.x;
     }
 
@@ -7716,11 +7797,12 @@ void ImGui::RenderWindowTitleBarContents(ImGuiWindow* window, const ImRect& titl
         g.CurrentItemFlags = backup_item_flags;
     }
 
+    PopFont(); // KXX FORK: end bigger title buttons
     window->DC.NavLayerCurrent = ImGuiNavLayer_Main;
     g.CurrentItemFlags = item_flags_backup;
 
-    // Title bar text (with: horizontal alignment, avoiding collapse/close button, optional "unsaved document" marker)
-    // FIXME: Refactor text alignment facilities along with RenderText helpers, this is WAY too much messy code..
+    // KXX FORK: bigger title text (push larger font so size calc + render agree)
+    PushFont(NULL, g.FontSize * 1.30f);
     const float marker_size_x = (flags & ImGuiWindowFlags_UnsavedDocument) ? button_sz * 0.80f : 0.0f;
     const ImVec2 text_size = CalcTextSize(name, NULL, true) + ImVec2(marker_size_x, 0.0f);
 
@@ -7754,6 +7836,7 @@ void ImGui::RenderWindowTitleBarContents(ImGuiWindow* window, const ImRect& titl
     //if (g.IO.KeyShift) window->DrawList->AddRect(layout_r.Min, layout_r.Max, IM_COL32(255, 128, 0, 255)); // [DEBUG]
     //if (g.IO.KeyCtrl) window->DrawList->AddRect(clip_r.Min, clip_r.Max, IM_COL32(255, 128, 0, 255)); // [DEBUG]
     RenderTextClipped(layout_r.Min, layout_r.Max, name, NULL, &text_size, style.WindowTitleAlign, &clip_r);
+    PopFont(); // KXX FORK
 }
 
 void ImGui::UpdateWindowParentAndRootLinks(ImGuiWindow* window, ImGuiWindowFlags flags, ImGuiWindow* parent_window)
@@ -8130,7 +8213,7 @@ bool ImGui::Begin(const char* name, bool* p_open, ImGuiWindowFlags flags)
         // Lock menu offset so size calculation can use it as menu-bar windows need a minimum size.
         window->DC.MenuBarOffset.x = ImMax(ImMax(window->WindowPadding.x, style.ItemSpacing.x), g.NextWindowData.MenuBarOffsetMinVal.x);
         window->DC.MenuBarOffset.y = g.NextWindowData.MenuBarOffsetMinVal.y;
-        window->TitleBarHeight = (flags & ImGuiWindowFlags_NoTitleBar) ? 0.0f : g.FontSize + g.Style.FramePadding.y * 2.0f;
+        window->TitleBarHeight = (flags & ImGuiWindowFlags_NoTitleBar) ? 0.0f : (window->DockIsActive ? (g.FontSize * 1.15f + g.Style.FramePadding.y * 2.0f + 3.0f) : (g.FontSize * 1.35f + g.Style.FramePadding.y * 2.0f + 6.0f)); // KXX FORK: docked = in-between, floating = larger
         window->MenuBarHeight = (flags & ImGuiWindowFlags_MenuBar) ? window->DC.MenuBarOffset.y + g.FontSize + g.Style.FramePadding.y * 2.0f : 0.0f;
         window->FontRefSize = g.FontSize; // Lock this to discourage calling window->CalcFontSize() outside of current window.
 
@@ -19425,9 +19508,9 @@ static void ImGui::DockNodeWindowMenuUpdate(ImGuiDockNode* node, ImGuiTabBar* ta
     // Try to position the menu so it is more likely to stays within the same viewport
     ImGuiContext& g = *GImGui;
     if (g.Style.WindowMenuButtonPosition == ImGuiDir_Left)
-        SetNextWindowPos(ImVec2(node->Pos.x, node->Pos.y + GetFrameHeight()), ImGuiCond_Always, ImVec2(0.0f, 0.0f));
+        SetNextWindowPos(ImVec2(node->Pos.x, node->Pos.y + KxxDockTabBarHeight()), ImGuiCond_Always, ImVec2(0.0f, 0.0f)); // KXX FORK
     else
-        SetNextWindowPos(ImVec2(node->Pos.x + node->Size.x, node->Pos.y + GetFrameHeight()), ImGuiCond_Always, ImVec2(1.0f, 0.0f));
+        SetNextWindowPos(ImVec2(node->Pos.x + node->Size.x, node->Pos.y + KxxDockTabBarHeight()), ImGuiCond_Always, ImVec2(1.0f, 0.0f)); // KXX FORK
     if (BeginPopup("#WindowMenu"))
     {
         node->IsFocused = true;
@@ -19540,7 +19623,9 @@ static void ImGui::DockNodeUpdateTabBar(ImGuiDockNode* node, ImGuiWindow* host_w
     node->IsFocused = is_focused;
 
     const ImGuiDockNodeFlags node_flags = node->MergedFlags;
-    const bool has_window_menu_button = (node_flags & ImGuiDockNodeFlags_NoWindowMenuButton) == 0 && (style.WindowMenuButtonPosition != ImGuiDir_None);
+    // KXX FORK: hide the docked window-menu (collapse) button globally. Floating
+    // windows keep their collapse button (separate code path in title bar render).
+    const bool has_window_menu_button = false;
 
     // In a dock node, the Collapse Button turns into the Window Menu button.
     // FIXME-DOCK FIXME-OPT: Could we recycle popups id across multiple dock nodes?
@@ -19571,7 +19656,9 @@ static void ImGui::DockNodeUpdateTabBar(ImGuiDockNode* node, ImGuiWindow* host_w
     // Title bar
     if (is_focused)
         node->LastFrameFocused = g.FrameCount;
-    ImU32 title_bar_col = GetColorU32(host_window->Collapsed ? ImGuiCol_TitleBgCollapsed : is_focused ? ImGuiCol_TitleBgActive : ImGuiCol_TitleBg);
+    // KXX FORK: docked tab-bar area uses the dark tab color (matches tab background),
+    // instead of TitleBgActive/TitleBg (which stay for floating window title bars).
+    ImU32 title_bar_col = GetColorU32(host_window->Collapsed ? ImGuiCol_TitleBgCollapsed : ImGuiCol_Tab);
     ImDrawFlags rounding_flags = CalcRoundingFlagsForRectInRect(title_bar_rect, host_window->Rect(), g.Style.DockingSeparatorSize);
     host_window->DrawList->AddRectFilled(title_bar_rect.Min, title_bar_rect.Max, title_bar_col, host_window->WindowRounding, rounding_flags);
 
@@ -19629,7 +19716,6 @@ static void ImGui::DockNodeUpdateTabBar(ImGuiDockNode* node, ImGuiWindow* host_w
     tab_bar->SeparatorMinX = node->Pos.x + host_window->WindowBorderSize; // Separator cover the whole node width
     tab_bar->SeparatorMaxX = node->Pos.x + node->Size.x - host_window->WindowBorderSize;
     BeginTabBarEx(tab_bar, tab_bar_rect, tab_bar_flags);
-    //host_window->DrawList->AddRect(tab_bar_rect.Min, tab_bar_rect.Max, IM_COL32(255,0,255,255));
 
     // Backup style colors
     ImVec4 backup_style_cols[ImGuiWindowDockStyleCol_COUNT];
@@ -19684,7 +19770,7 @@ static void ImGui::DockNodeUpdateTabBar(ImGuiDockNode* node, ImGuiWindow* host_w
     // Close button (after VisibleWindow was updated)
     // Note that VisibleWindow may have been overrided by CTRL+Tabbing, so VisibleWindow->TabId may be != from tab_bar->SelectedTabId
     const bool close_button_is_enabled = node->HasCloseButton && node->VisibleWindow && node->VisibleWindow->HasCloseButton;
-    const bool close_button_is_visible = node->HasCloseButton;
+    const bool close_button_is_visible = false; // KXX FORK: hide the dock-node close (X) button
     //const bool close_button_is_visible = close_button_is_enabled; // Most people would expect this behavior of not even showing the button (leaving a hole since we can't claim that space as other windows in the tba bar have one)
     if (close_button_is_visible)
     {
@@ -19831,7 +19917,9 @@ static void ImGui::DockNodeCalcTabBarLayout(const ImGuiDockNode* node, ImRect* o
     ImGuiContext& g = *GImGui;
     ImGuiStyle& style = g.Style;
 
-    ImRect r = ImRect(node->Pos.x, node->Pos.y, node->Pos.x + node->Size.x, node->Pos.y + g.FontSize + g.Style.FramePadding.y * 2.0f);
+    // KXX FORK: taller docked tab bar (shared helper so hit-test/preview agree).
+    const float kxx_dock_h = KxxDockTabBarHeight();
+    ImRect r = ImRect(node->Pos.x, node->Pos.y, node->Pos.x + node->Size.x, node->Pos.y + kxx_dock_h);
     if (out_title_rect) { *out_title_rect = r; }
 
     r.Min.x += style.WindowBorderSize;
@@ -19840,21 +19928,10 @@ static void ImGui::DockNodeCalcTabBarLayout(const ImGuiDockNode* node, ImRect* o
     float button_sz = g.FontSize;
     r.Min.x += style.FramePadding.x;
     r.Max.x -= style.FramePadding.x;
+    // KXX FORK: reserve NO space for the window-menu (collapse) button or the
+    // dock close button — both are hidden, so tabs use the full width.
     ImVec2 window_menu_button_pos = ImVec2(r.Min.x, r.Min.y + style.FramePadding.y);
-    if (node->HasCloseButton)
-    {
-        if (out_close_button_pos) *out_close_button_pos = ImVec2(r.Max.x - button_sz, r.Min.y + style.FramePadding.y);
-        r.Max.x -= button_sz + style.ItemInnerSpacing.x;
-    }
-    if (node->HasWindowMenuButton && style.WindowMenuButtonPosition == ImGuiDir_Left)
-    {
-        r.Min.x += button_sz + style.ItemInnerSpacing.x;
-    }
-    else if (node->HasWindowMenuButton && style.WindowMenuButtonPosition == ImGuiDir_Right)
-    {
-        window_menu_button_pos = ImVec2(r.Max.x - button_sz, r.Min.y + style.FramePadding.y);
-        r.Max.x -= button_sz + style.ItemInnerSpacing.x;
-    }
+    IM_UNUSED(button_sz);
     if (out_tab_bar_rect) { *out_tab_bar_rect = r; }
     if (out_window_menu_button_pos) { *out_window_menu_button_pos = window_menu_button_pos; }
 }
@@ -20063,14 +20140,15 @@ static void ImGui::DockNodePreviewDockRender(ImGuiWindow* host_window, ImGuiDock
     {
         ImRect overlay_rect = data->FutureNode.Rect();
         if (data->SplitDir == ImGuiDir_None && can_preview_tabs)
-            overlay_rect.Min.y += GetFrameHeight();
+            overlay_rect.Min.y += KxxDockTabBarHeight(); // KXX FORK: match taller tab bar (no bleed)
         if (data->SplitDir != ImGuiDir_None || data->IsCenterAvailable)
             for (int overlay_n = 0; overlay_n < overlay_draw_lists_count; overlay_n++)
                 overlay_draw_lists[overlay_n]->AddRectFilled(overlay_rect.Min, overlay_rect.Max, overlay_col_main, host_window->WindowRounding, CalcRoundingFlagsForRectInRect(overlay_rect, host_window->Rect(), g.Style.DockingSeparatorSize));
     }
 
     // Display tab shape/label preview unless we are splitting node (it generally makes the situation harder to read)
-    if (data->IsDropAllowed && can_preview_tabs && data->SplitDir == ImGuiDir_None && data->IsCenterAvailable)
+    // KXX FORK: preview tab pill disabled (kept drop-target rectangles + main preview).
+    if (false && data->IsDropAllowed && can_preview_tabs && data->SplitDir == ImGuiDir_None && data->IsCenterAvailable)
     {
         // Compute target tab bar geometry so we can locate our preview tabs
         ImRect tab_bar_rect;
