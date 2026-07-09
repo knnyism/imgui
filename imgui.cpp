@@ -7673,17 +7673,23 @@ void ImGui::RenderWindowDecorations(ImGuiWindow* window, const ImRect& title_bar
         {
             ImRect menu_bar_rect = window->MenuBarRect();
             menu_bar_rect.ClipWith(window->Rect());  // Soft clipping, in particular child window don't have minimum size covering the menu bar so this is useful for them.
-            // KXX FORK: inset by the window border so the menu bar bg doesn't paint over the left/right borders.
-            menu_bar_rect.Min.x += window_border_size;
-            menu_bar_rect.Max.x -= window_border_size;
+            // KXX FORK: inset by the window border so the menu bar bg doesn't paint over
+            // the left/right borders — but ONLY for undocked windows. A docked window has
+            // no L/R window border (the dock node owns the edges), so insetting there just
+            // leaves a gap and makes the bar narrower than the node. Docked => no inset.
+            const float kxx_menu_inset = window->DockIsActive ? 0.0f : window_border_size;
+            menu_bar_rect.Min.x += kxx_menu_inset;
+            menu_bar_rect.Max.x -= kxx_menu_inset;
             window->DrawList->AddRectFilled(menu_bar_rect.Min, menu_bar_rect.Max, GetColorU32(ImGuiCol_MenuBarBg), (flags & ImGuiWindowFlags_NoTitleBar) ? window_rounding : 0.0f, ImDrawFlags_RoundCornersTop);
-            // KXX FORK: line between the title bar and the menu bar (top edge), when a title bar exists.
-            if (!(flags & ImGuiWindowFlags_NoTitleBar))
-                window->DrawList->AddLineH(menu_bar_rect.Min.x + window_border_size * 0.5f, menu_bar_rect.Max.x - window_border_size * 0.5f, menu_bar_rect.Min.y, GetColorU32(ImGuiCol_Border), 1.0f);
+            // KXX FORK: line between the title bar and the menu bar (top edge). Skip it
+            // when docked — the dock node's tab-bar already draws a border at that Y, so
+            // adding ours stacks two 1px lines into a 2px edge.
+            if (!(flags & ImGuiWindowFlags_NoTitleBar) && !window->DockIsActive)
+                window->DrawList->AddLineH(menu_bar_rect.Min.x + kxx_menu_inset * 0.5f, menu_bar_rect.Max.x - kxx_menu_inset * 0.5f, menu_bar_rect.Min.y, GetColorU32(ImGuiCol_Border), 1.0f);
             // KXX FORK: always draw the menu bar's bottom separator line (independent
             // of FrameBorderSize, which stays 0 so widgets aren't bordered).
             if (menu_bar_rect.Max.y < window->Pos.y + window->Size.y)
-                window->DrawList->AddLineH(menu_bar_rect.Min.x + window_border_size * 0.5f, menu_bar_rect.Max.x - window_border_size * 0.5f, menu_bar_rect.Max.y, GetColorU32(ImGuiCol_Border), 1.0f);
+                window->DrawList->AddLineH(menu_bar_rect.Min.x + kxx_menu_inset * 0.5f, menu_bar_rect.Max.x - kxx_menu_inset * 0.5f, menu_bar_rect.Max.y, GetColorU32(ImGuiCol_Border), 1.0f);
         }
 
         // Docking: Unhide tab bar (small triangle in the corner), drag from small triangle to quickly undock
@@ -19680,7 +19686,7 @@ static void ImGui::DockNodeUpdateTabBar(ImGuiDockNode* node, ImGuiWindow* host_w
     // instead of TitleBgActive/TitleBg (which stay for floating window title bars).
     ImU32 title_bar_col = GetColorU32(host_window->Collapsed ? ImGuiCol_TitleBgCollapsed : ImGuiCol_Tab);
     ImDrawFlags rounding_flags = CalcRoundingFlagsForRectInRect(title_bar_rect, host_window->Rect(), g.Style.DockingSeparatorSize);
-    host_window->DrawList->AddRectFilled(title_bar_rect.Min, title_bar_rect.Max, title_bar_col, host_window->WindowRounding, rounding_flags);
+    host_window->DrawList->AddRectFilled(title_bar_rect.Min, title_bar_rect.Max, title_bar_col, 6.0f, rounding_flags);
 
     // Docking/Collapse button
     if (has_window_menu_button)
