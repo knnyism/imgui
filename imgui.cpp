@@ -7685,11 +7685,11 @@ void ImGui::RenderWindowDecorations(ImGuiWindow* window, const ImRect& title_bar
             // when docked — the dock node's tab-bar already draws a border at that Y, so
             // adding ours stacks two 1px lines into a 2px edge.
             if (!(flags & ImGuiWindowFlags_NoTitleBar) && !window->DockIsActive)
-                window->DrawList->AddLineH(menu_bar_rect.Min.x + kxx_menu_inset * 0.5f, menu_bar_rect.Max.x - kxx_menu_inset * 0.5f, menu_bar_rect.Min.y, GetColorU32(ImGuiCol_Border), 1.0f);
+                window->DrawList->AddLineH(menu_bar_rect.Min.x, menu_bar_rect.Max.x, menu_bar_rect.Min.y, GetColorU32(ImGuiCol_Border), 1.0f);
             // KXX FORK: always draw the menu bar's bottom separator line (independent
             // of FrameBorderSize, which stays 0 so widgets aren't bordered).
             if (menu_bar_rect.Max.y < window->Pos.y + window->Size.y)
-                window->DrawList->AddLineH(menu_bar_rect.Min.x + kxx_menu_inset * 0.5f, menu_bar_rect.Max.x - kxx_menu_inset * 0.5f, menu_bar_rect.Max.y, GetColorU32(ImGuiCol_Border), 1.0f);
+                window->DrawList->AddLineH(menu_bar_rect.Min.x, menu_bar_rect.Max.x, menu_bar_rect.Max.y, GetColorU32(ImGuiCol_Border), 1.0f);
         }
 
         // Docking: Unhide tab bar (small triangle in the corner), drag from small triangle to quickly undock
