@@ -7680,15 +7680,19 @@ void ImGui::RenderWindowDecorations(ImGuiWindow* window, const ImRect& title_bar
             const float kxx_menu_inset = window->DockIsActive ? 0.0f : window_border_size;
             menu_bar_rect.Min.x += kxx_menu_inset;
             menu_bar_rect.Max.x -= kxx_menu_inset;
-            window->DrawList->AddRectFilled(menu_bar_rect.Min, menu_bar_rect.Max, GetColorU32(ImGuiCol_MenuBarBg), (flags & ImGuiWindowFlags_NoTitleBar) ? window_rounding : 0.0f, ImDrawFlags_RoundCornersTop);
+            const ImU32 kxx_menu_bg = GetColorU32(ImGuiCol_MenuBarBg);
+            window->DrawList->AddRectFilled(menu_bar_rect.Min, menu_bar_rect.Max, kxx_menu_bg, (flags & ImGuiWindowFlags_NoTitleBar) ? window_rounding : 0.0f, ImDrawFlags_RoundCornersTop);
+            // KXX FORK: skip the menu bar separator lines when the menu bar background
+            // is transparent (alpha 0) — a see-through bar shouldn't carry an outline.
+            const bool kxx_menu_transparent = (kxx_menu_bg & IM_COL32_A_MASK) == 0;
             // KXX FORK: line between the title bar and the menu bar (top edge). Skip it
             // when docked — the dock node's tab-bar already draws a border at that Y, so
             // adding ours stacks two 1px lines into a 2px edge.
-            if (!(flags & ImGuiWindowFlags_NoTitleBar) && !window->DockIsActive)
+            if (!(flags & ImGuiWindowFlags_NoTitleBar) && !window->DockIsActive && !kxx_menu_transparent)
                 window->DrawList->AddLineH(menu_bar_rect.Min.x, menu_bar_rect.Max.x, menu_bar_rect.Min.y, GetColorU32(ImGuiCol_Border), 1.0f);
             // KXX FORK: always draw the menu bar's bottom separator line (independent
             // of FrameBorderSize, which stays 0 so widgets aren't bordered).
-            if (menu_bar_rect.Max.y < window->Pos.y + window->Size.y)
+            if (menu_bar_rect.Max.y < window->Pos.y + window->Size.y && !kxx_menu_transparent)
                 window->DrawList->AddLineH(menu_bar_rect.Min.x, menu_bar_rect.Max.x, menu_bar_rect.Max.y, GetColorU32(ImGuiCol_Border), 1.0f);
         }
 
