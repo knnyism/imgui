@@ -19420,7 +19420,8 @@ static void ImGui::DockNodeUpdate(ImGuiDockNode* node)
         host_window->DrawList->ChannelsSetCurrent(DOCKING_HOST_DRAW_CHANNEL_BG);
         node->LastBgColor = (node_flags & ImGuiDockNodeFlags_PassthruCentralNode) ? 0 : GetColorU32(ImGuiCol_DockingEmptyBg);
         if (node->LastBgColor != 0)
-            host_window->DrawList->AddRectFilled(node->Pos, node->Pos + node->Size, node->LastBgColor);
+            host_window->DrawList->AddRectFilled(node->Pos, node->Pos + node->Size,
+                                                 node->LastBgColor, 6.0f, ImDrawFlags_RoundCornersAll);
         node->IsBgDrawnThisFrame = true;
     }
 
